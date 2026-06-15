@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="给传统程序员的智能体工程入门指南：4 个认知模型、6 条设计原则、5 个反模式">
+<title>Agent 工程实战手册 — 给传统程序员的入门指南</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ========== 设计令牌 ========== */
+:root {
+  --color-bg: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-fg: #1E293B;
+  --color-muted: #64748B;
+  --color-border: #E2E8F0;
+  --color-accent: #2563EB;
+  --color-accent-soft: #DBEAFE;
+  --color-danger: #DC2626;
+  --color-danger-soft: #FEE2E2;
+  --color-success: #059669;
+  --color-success-soft: #D1FAE5;
+  --color-warn: #D97706;
+  --color-warn-soft: #FEF3C7;
+  --color-code-bg: #F1F5F9;
+  --shadow-sm: 0 1px 2px rgba(15,23,42,.04);
+  --shadow-md: 0 4px 12px rgba(15,23,42,.06);
+  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  --content-width: 720px;
+  --sidebar-width: 240px;
+}
+[data-theme="dark"] {
+  --color-bg: #0F172A;
+  --color-surface: #1E293B;
+  --color-fg: #E2E8F0;
+  --color-muted: #94A3B8;
+  --color-border: #334155;
+  --color-accent: #60A5FA;
+  --color-accent-soft: #1E3A5F;
+  --color-danger: #F87171;
+  --color-danger-soft: #3F1D1D;
+  --color-success: #34D399;
+  --color-success-soft: #14402E;
+  --color-warn: #FBBF24;
+  --color-warn-soft: #3D2E0E;
+  --color-code-bg: #0D1B2A;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.2);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.3);
+}
+
+/* ========== 重置 ========== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+body {
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-fg);
+  line-height: 1.75;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color .25s, color .25s;
+}
+a { color: var(--color-accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ========== 进度条 ========== */
+.progress-bar {
+  position: fixed; top: 0; left: 0; height: 3px;
+  background: var(--color-accent); width: 0%;
+  z-index: 1000; transition: width .1s ease-out;
+}
+
+/* ========== 顶栏 ========== */
+.topbar {
+  position: fixed; top: 0; left: 0; right: 0; height: 56px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px; z-index: 100;
+  backdrop-filter: blur(8px);
+}
+.topbar-title {
+  font-weight: 600; font-size: 14px; color: var(--color-fg);
+  letter-spacing: -0.01em;
+}
+.topbar-title .mono { font-family: var(--font-mono); color: var(--color-muted); font-weight: 400; }
+.topbar-actions { display: flex; gap: 12px; align-items: center; }
+.theme-toggle {
+  background: none; border: 1px solid var(--color-border);
+  width: 36px; height: 36px; border-radius: 8px;
+  cursor: pointer; color: var(--color-fg);
+  display: flex; align-items: center; justify-content: center;
+  transition: all .2s;
+}
+.theme-toggle:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.menu-toggle { display: none; }
+
+/* ========== 布局 ========== */
+.layout {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  max-width: 1200px; margin: 0 auto;
+  padding-top: 56px;
+}
+
+/* ========== 侧边目录 ========== */
+.sidebar {
+  position: sticky; top: 56px; height: calc(100vh - 56px);
+  overflow-y: auto; padding: 40px 24px;
+  border-right: 1px solid var(--color-border);
+}
+.sidebar nav { display: flex; flex-direction: column; gap: 2px; }
+.sidebar .nav-label {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--color-muted);
+  margin: 20px 0 8px 0;
+}
+.sidebar .nav-label:first-child { margin-top: 0; }
+.sidebar a {
+  color: var(--color-muted); font-size: 13.5px;
+  padding: 6px 12px; border-radius: 6px;
+  border-left: 2px solid transparent;
+  line-height: 1.5;
+}
+.sidebar a:hover { color: var(--color-fg); background: var(--color-code-bg); text-decoration: none; }
+.sidebar a.active {
+  color: var(--color-accent); font-weight: 500;
+  border-left-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+/* ========== 主内容 ========== */
+.content {
+  padding: 0 64px;
+  max-width: var(--content-width);
+}
+.content section { padding: 56px 0; border-bottom: 1px solid var(--color-border); }
+.content section:last-child { border-bottom: none; }
+
+/* ========== Hero ========== */
+.hero {
+  padding: 96px 0 72px !important;
+  border-bottom: 1px solid var(--color-border) !important;
+}
+.hero .eyebrow {
+  font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+  color: var(--color-accent); letter-spacing: 0.05em;
+  margin-bottom: 24px;
+}
+.hero h1 {
+  font-size: clamp(32px, 5vw, 48px); font-weight: 700;
+  line-height: 1.15; letter-spacing: -0.02em;
+  margin-bottom: 20px;
+}
+.hero .subtitle {
+  font-size: 19px; color: var(--color-muted);
+  line-height: 1.55; margin-bottom: 32px;
+  max-width: 580px;
+}
+.hero .hook {
+  font-family: var(--font-mono); font-size: 14px;
+  background: var(--color-code-bg);
+  border-left: 3px solid var(--color-accent);
+  padding: 16px 20px; border-radius: 0 8px 8px 0;
+  margin-bottom: 32px; line-height: 1.7;
+}
+.hero .meta {
+  display: flex; gap: 24px; flex-wrap: wrap;
+  font-size: 13px; color: var(--color-muted);
+}
+.hero .meta span { display: flex; align-items: center; gap: 6px; }
+.hero .meta strong { color: var(--color-fg); font-weight: 600; }
+
+/* ========== 排版 ========== */
+h2 {
+  font-size: 30px; font-weight: 700;
+  letter-spacing: -0.02em; line-height: 1.25;
+  margin-bottom: 8px;
+}
+h2 .num {
+  font-family: var(--font-mono); font-size: 14px;
+  color: var(--color-accent); font-weight: 600;
+  vertical-align: super; margin-right: 8px;
+}
+.section-lead {
+  font-size: 17px; color: var(--color-muted);
+  margin-bottom: 40px; max-width: 620px;
+}
+h3 {
+  font-size: 21px; font-weight: 600;
+  margin-top: 48px; margin-bottom: 16px;
+  letter-spacing: -0.01em;
+}
+h4 {
+  font-size: 16px; font-weight: 600;
+  margin-top: 28px; margin-bottom: 10px;
+  color: var(--color-fg);
+}
+p { margin-bottom: 16px; }
+strong { font-weight: 600; color: var(--color-fg); }
+em { font-style: normal; color: var(--color-accent); font-weight: 500; }
+code {
+  font-family: var(--font-mono); font-size: 0.88em;
+  background: var(--color-code-bg); padding: 2px 6px;
+  border-radius: 4px;
+}
+ul, ol { margin: 0 0 20px 24px; }
+li { margin-bottom: 8px; }
+blockquote {
+  border-left: 3px solid var(--color-accent);
+  padding: 8px 20px; margin: 20px 0;
+  color: var(--color-muted); font-style: italic;
+  background: var(--color-accent-soft);
+  border-radius: 0 6px 6px 0;
+}
+
+/* ========== 卡片组件 ========== */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px; padding: 24px 28px;
+  margin: 24px 0; box-shadow: var(--shadow-sm);
+}
+.card-title {
+  font-size: 17px; font-weight: 600;
+  margin-bottom: 16px; display: flex; align-items: center; gap: 10px;
+}
+.card-title .tag {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+  padding: 2px 8px; border-radius: 4px;
+  background: var(--color-accent-soft); color: var(--color-accent);
+}
+.principle-grid {
+  display: grid; grid-template-columns: 100px 1fr;
+  gap: 8px 20px; font-size: 14.5px;
+}
+.principle-grid dt {
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--color-muted); font-weight: 500;
+  padding-top: 2px;
+}
+.principle-grid dd { margin-bottom: 12px; line-height: 1.7; }
+
+/* 反模式卡片 */
+.antipattern {
+  border-left: 3px solid var(--color-danger);
+  background: var(--color-danger-soft);
+  border-radius: 0 10px 10px 0;
+}
+.antipattern .card-title { color: var(--color-danger); }
+.antipattern .card-title .tag {
+  background: var(--color-danger); color: #fff;
+}
+.prescription {
+  background: var(--color-success-soft);
+  border-radius: 8px; padding: 14px 18px;
+  margin-top: 16px; font-size: 14.5px;
+}
+.prescription::before {
+  content: "处方 →"; font-family: var(--font-mono); font-size: 12px;
+  color: var(--color-success); font-weight: 600;
+  display: block; margin-bottom: 6px;
+}
+
+/* 自检清单 */
+.checklist {
+  background: var(--color-code-bg);
+  border-radius: 10px; padding: 24px 28px;
+  margin: 24px 0;
+}
+.checklist-title {
+  font-family: var(--font-mono); font-size: 12px; font-weight: 600;
+  color: var(--color-accent); text-transform: uppercase;
+  letter-spacing: 0.08em; margin-bottom: 16px;
+}
+.checklist ul { list-style: none; margin: 0; }
+.checklist li {
+  padding-left: 28px; position: relative;
+  font-size: 14.5px; margin-bottom: 10px;
+}
+.checklist li::before {
+  content: "☐"; position: absolute; left: 0; top: 0;
+  font-size: 18px; color: var(--color-muted);
+}
+
+/* 表格 */
+table {
+  width: 100%; border-collapse: collapse;
+  margin: 20px 0; font-size: 14px;
+}
+th, td {
+  text-align: left; padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+th {
+  font-weight: 600; font-size: 13px;
+  color: var(--color-muted); background: var(--color-code-bg);
+}
+tbody tr:hover { background: var(--color-code-bg); }
+
+/* SVG 图表容器 */
+.chart {
+  margin: 32px 0; padding: 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+.chart-caption {
+  text-align: center; font-size: 13px;
+  color: var(--color-muted); margin-top: 12px;
+  font-style: italic;
+}
+
+/* 高亮提示 */
+.highlight {
+  background: var(--color-warn-soft);
+  padding: 2px 6px; border-radius: 4px;
+  font-weight: 500;
+}
+
+/* 分隔标号 */
+.act-divider {
+  display: flex; align-items: center; gap: 16px;
+  margin: 72px 0 8px 0; font-family: var(--font-mono);
+  font-size: 12px; color: var(--color-accent);
+  font-weight: 600; letter-spacing: 0.1em;
+}
+.act-divider::after {
+  content: ""; flex: 1; height: 1px;
+  background: var(--color-border);
+}
+
+/* 带回家清单 */
+.takeaway-grid {
+  display: grid; gap: 16px; margin: 24px 0;
+}
+.takeaway-item {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px; padding: 20px 24px;
+  display: grid; grid-template-columns: 40px 1fr;
+  gap: 16px; align-items: start;
+}
+.takeaway-num {
+  font-family: var(--font-mono); font-size: 22px;
+  font-weight: 600; color: var(--color-accent);
+  line-height: 1;
+}
+.takeaway-item strong { display: block; margin-bottom: 4px; }
+.takeaway-item p { font-size: 14px; color: var(--color-muted); margin: 0; }
+
+/* 结语 */
+.closing {
+  text-align: center; padding: 80px 0 !important;
+}
+.closing p {
+  font-size: 17px; color: var(--color-muted);
+  max-width: 520px; margin: 0 auto;
+  line-height: 1.7;
+}
+.closing .signature {
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--color-muted); margin-top: 32px;
+  padding-top: 24px; border-top: 1px solid var(--color-border);
+}
+
+/* ========== 响应式 ========== */
+@media (max-width: 1024px) {
+  :root { --sidebar-width: 200px; }
+  .content { padding: 0 40px; }
+}
+@media (max-width: 768px) {
+  .layout { grid-template-columns: 1fr; }
+  .sidebar {
+    position: fixed; top: 56px; left: 0;
+    width: 280px; height: calc(100vh - 56px);
+    background: var(--color-surface);
+    transform: translateX(-100%);
+    transition: transform .25s ease;
+    z-index: 99; border-right: 1px solid var(--color-border);
+  }
+  .sidebar.open { transform: translateX(0); }
+  .menu-toggle {
+    display: flex; background: none; border: 1px solid var(--color-border);
+    width: 36px; height: 36px; border-radius: 8px;
+    cursor: pointer; color: var(--color-fg);
+    align-items: center; justify-content: center;
+  }
+  .content { padding: 0 24px; }
+  .hero { padding: 56px 0 48px !important; }
+  .content section { padding: 40px 0; }
+  .principle-grid { grid-template-columns: 1fr; gap: 4px 0; }
+  .principle-grid dt { padding-top: 12px; }
+  .takeaway-item { grid-template-columns: 1fr; gap: 8px; }
+}
+@media (max-width: 480px) {
+  .content { padding: 0 20px; }
+  h2 { font-size: 24px; }
+  .card, .checklist { padding: 18px 20px; }
+  .topbar { padding: 0 16px; }
+}
+
+/* 可访问性 */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px; border-radius: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+  html { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+
+<header class="topbar">
+  <div style="display:flex; align-items:center; gap:12px;">
+    <button class="menu-toggle" id="menuToggle" aria-label="目录">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+    </button>
+    <span class="topbar-title">Agent 工程实战手册 <span class="mono">/ handbook</span></span>
+  </div>
+  <div class="topbar-actions">
+    <button class="theme-toggle" id="themeToggle" aria-label="切换主题">
+      <svg id="iconMoon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <nav>
+      <div class="nav-label">开场</div>
+      <a href="#hero">导读</a>
+
+      <div class="nav-label">第一幕 · 认知篇</div>
+      <a href="#m1-harness">Agent = Model + Harness</a>
+      <a href="#m1-cognition">认知四阶</a>
+      <a href="#m1-granularity">颗粒度 × 验证</a>
+
+      <div class="nav-label">第二幕 · 实践篇</div>
+      <a href="#m2-tools">工具设计原则</a>
+      <a href="#m2-loop">循环设计</a>
+      <a href="#m2-eval">eval-driven 开发</a>
+      <a href="#m2-multi">双 Agent 协作</a>
+      <a href="#m2-curve">驾驭曲线</a>
+
+      <div class="nav-label">第三幕 · 避坑篇</div>
+      <a href="#m3-bigbang">憋大招</a>
+      <a href="#m3-determinism">确定性陷阱</a>
+      <a href="#m3-shell">空壳闭环</a>
+      <a href="#m3-gate">无质量门禁</a>
+      <a href="#m3-statemachine">迷信状态机</a>
+
+      <div class="nav-label">收尾</div>
+      <a href="#takeaway">带回家清单</a>
+      <a href="#closing">结语</a>
+    </nav>
+  </aside>
+
+  <main class="content">
+
+    <!-- ========== HERO ========== -->
+    <section class="hero" id="hero">
+      <div class="eyebrow">FIELD GUIDE · 2026</div>
+      <h1>Agent 工程实战手册</h1>
+      <p class="subtitle">写给想入门智能体工程的传统程序员。<br>4 个认知模型 · 6 条设计原则 · 5 个反模式 —— 从实战中提炼，可直接搬用。</p>
+      <div class="hook">
+        决定一个 Agent 好坏的，不是模型有多强，<br>而是 <strong>harness</strong>（脚手架）有多好。<br>
+        一个中等模型配优秀的 harness，胜过顶级模型配糟糕的 harness。
+      </div>
+      <div class="meta">
+        <span>⏱ <strong>约 15 分钟</strong> 读完</span>
+        <span>📦 <strong>4 个模型</strong> 可带走</span>
+        <span>✅ <strong>3 份自检</strong> 清单</span>
+      </div>
+    </section>
+
+    <!-- ========== 第一幕 认知篇 ========== -->
+    <div class="act-divider">ACT I · 认知篇 — 打破三个旧认知</div>
+
+    <!-- 模型 1 -->
+    <section id="m1-harness">
+      <h2><span class="num">01</span>Agent = Model + Harness</h2>
+      <p class="section-lead">这是整本手册的锚点。它改变了"程序员该关注什么"的答案。</p>
+
+      <p>很多人讨论 Agent 时，注意力都在"用哪个模型"。但真正决定 Agent 表现的，是<strong>模型之外的一切</strong>——工具定义、编排逻辑、上下文管理、错误处理、验证循环。这些统称为 <strong>harness</strong>（脚手架）。</p>
+
+      <blockquote>
+        "A decent model with a great harness beats a great model with a bad harness."<br>
+        —— Addy Osmani
+      </blockquote>
+
+      <p>实证数据支持这个判断：在 TerminalBench 基准测试中，<strong>仅更换 harness 设计（模型完全不变），Agent 排名可以变化 20 多个位次</strong>。换句话说，你花在优化 harness 上的每一小时，比花在挑选模型上的回报高得多。</p>
+
+      <div class="card">
+        <div class="card-title"><span class="tag">原则</span>模型之外皆是工程</div>
+        <dl class="principle-grid">
+          <dt>为什么</dt>
+          <dd>模型是黑盒，但 harness 是白盒——工具、错误处理、上下文、循环，每一项都是工程师可以掌控、可以优化、可以回归测试的。</dd>
+          <dt>怎么做</dt>
+          <dd>遇到 Agent 表现不好，<strong>先别想着换模型，先查 harness</strong>：工具描述够不够清楚？错误信息可不可操作？上下文给得够不够？循环次数够不够？这四个问题查完，80% 的问题能定位。</dd>
+          <dt>反模式</dt>
+          <dd>迷信"换个更强的模型就好了"。模型升级解决的是能力上限，harness 解决的是能力发挥——两者是不同维度的问题。</dd>
+        </dl>
+      </div>
+
+      <h3>脚手架的共生演化</h3>
+      <p>一个更深的认知：harness 不是越多越好。它有两层含义：</p>
+      <ul>
+        <li><strong>该拆的要拆</strong>：harness 编码了对模型能力的假设。模型升级后，旧假设失效，对应的脚手架（比如过度详细的步骤拆解、冗余的格式约束）应该移除，否则越来越臃肿。</li>
+        <li><strong>该测的要测</strong>：模型是配合特定 harness 做后训练的。改动工具实现可能因紧耦合导致性能退化——<strong>改了 harness 必须回归测试</strong>。</li>
+      </ul>
+      <p>把 harness 当成一个需要维护、需要回归的工程资产，而不是"加上去就不用管"的一次性配置。</p>
+    </section>
+
+    <!-- 模型 2 -->
+    <section id="m1-cognition">
+      <h2><span class="num">02</span>认知四阶：Prompt → Context → Harness → Loop</h2>
+      <p class="section-lead">传统程序员切入 Agent 工程，认知需要经历四个阶段。这是关注点"从模型逐渐外移到系统"的过程。</p>
+
+      <p>大多数人学 Agent，第一反应是研究"怎么写 prompt"。这只对了第一步。完整的路径是四阶递进，<strong>越往后越是 Agent 工程的核心，也越是大多数人忽略的部分</strong>。</p>
+
+      <div class="chart">
+        <svg viewBox="0 0 600 220" width="100%" style="display:block">
+          <!-- 渐变定义 -->
+          <defs>
+            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#2563EB" stop-opacity="0.15"/>
+              <stop offset="100%" stop-color="#2563EB" stop-opacity="0.5"/>
+            </linearGradient>
+          </defs>
+          <!-- 主轴 -->
+          <line x1="40" y1="170" x2="560" y2="170" stroke="currentColor" stroke-width="1.5" opacity="0.4"/>
+          <line x1="40" y1="40" x2="40" y2="170" stroke="currentColor" stroke-width="1.5" opacity="0.4"/>
+          <!-- 箭头标签 -->
+          <text x="300" y="205" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.6" font-family="JetBrains Mono">关注点：模型 ←————————————————————→ 系统</text>
+          <!-- 四个阶段方块 -->
+          <g font-family="IBM Plex Sans">
+            <rect x="70" y="80" width="110" height="70" rx="6" fill="url(#grad1)" stroke="#2563EB" stroke-width="1.5"/>
+            <text x="125" y="105" text-anchor="middle" font-size="13" font-weight="600" fill="currentColor">阶 1</text>
+            <text x="125" y="125" text-anchor="middle" font-size="11" fill="currentColor">Prompt</text>
+            <text x="125" y="140" text-anchor="middle" font-size="11" fill="currentColor">Engineering</text>
+            <text x="125" y="65" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.6">说什么</text>
+          </g>
+          <g font-family="IBM Plex Sans">
+            <rect x="200" y="80" width="110" height="70" rx="6" fill="url(#grad1)" stroke="#2563EB" stroke-width="1.5"/>
+            <text x="255" y="105" text-anchor="middle" font-size="13" font-weight="600" fill="currentColor">阶 2</text>
+            <text x="255" y="125" text-anchor="middle" font-size="11" fill="currentColor">Context</text>
+            <text x="255" y="140" text-anchor="middle" font-size="11" fill="currentColor">Engineering</text>
+            <text x="255" y="65" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.6">给什么</text>
+          </g>
+          <g font-family="IBM Plex Sans">
+            <rect x="330" y="80" width="110" height="70" rx="6" fill="url(#grad1)" stroke="#2563EB" stroke-width="1.5"/>
+            <text x="385" y="105" text-anchor="middle" font-size="13" font-weight="600" fill="currentColor">阶 3</text>
+            <text x="385" y="125" text-anchor="middle" font-size="11" fill="currentColor">Harness</text>
+            <text x="385" y="140" text-anchor="middle" font-size="11" fill="currentColor">Engineering</text>
+            <text x="385" y="65" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.6">怎么交互</text>
+          </g>
+          <g font-family="IBM Plex Sans">
+            <rect x="460" y="80" width="110" height="70" rx="6" fill="url(#grad1)" stroke="#2563EB" stroke-width="1.5"/>
+            <text x="515" y="105" text-anchor="middle" font-size="13" font-weight="600" fill="currentColor">阶 4</text>
+            <text x="515" y="125" text-anchor="middle" font-size="11" fill="currentColor">Loop</text>
+            <text x="515" y="140" text-anchor="middle" font-size="11" fill="currentColor">Engineering</text>
+            <text x="515" y="65" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.6">怎么循环</text>
+          </g>
+          <!-- 箭头 -->
+          <path d="M 180 115 L 195 115 M 192 112 L 195 115 L 192 118" stroke="#2563EB" stroke-width="1.5" fill="none"/>
+          <path d="M 310 115 L 325 115 M 322 112 L 325 115 L 322 118" stroke="#2563EB" stroke-width="1.5" fill="none"/>
+          <path d="M 440 115 L 455 115 M 452 112 L 455 115 L 452 118" stroke="#2563EB" stroke-width="1.5" fill="none"/>
+        </svg>
+        <div class="chart-caption">图 1 · 认知四阶：关注点从模型逐渐外移到系统。越往右越是 Agent 工程的核心。</div>
+      </div>
+
+      <table>
+        <thead>
+          <tr><th>阶段</th><th>关注点</th><th>典型问题</th><th>成熟标志</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>阶 1</strong><br>Prompt</td>
+            <td>怎么跟模型说话</td>
+            <td>"怎么写 prompt 让模型听话"</td>
+            <td>会写 few-shot、能控制输出格式</td>
+          </tr>
+          <tr>
+            <td><strong>阶 2</strong><br>Context</td>
+            <td>给模型什么信息</td>
+            <td>"模型需要哪些上下文才能决策"</td>
+            <td>会分层注入（系统/记忆/动态上下文）</td>
+          </tr>
+          <tr>
+            <td><strong>阶 3</strong><br>Harness</td>
+            <td>模型怎么与系统交互</td>
+            <td>"工具怎么设计、错误怎么返回"</td>
+            <td>工具描述当 prompt 写、错误信息可操作</td>
+          </tr>
+          <tr>
+            <td><strong>阶 4</strong><br>Loop</td>
+            <td>执行循环怎么设计</td>
+            <td>"状态机还是自决循环、触发和响应怎么分离"</td>
+            <td>知道"保持循环简单，复杂度下沉到工具"</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="checklist">
+        <div class="checklist-title">自检 · 你在哪一阶？</div>
+        <ul>
+          <li>还在纠结"怎么写 prompt 让模型输出想要的格式" → <strong>阶 1</strong></li>
+          <li>开始关心"模型需要哪些上下文才能决策" → <strong>阶 2</strong></li>
+          <li>开始设计工具、关心错误返回的格式 → <strong>阶 3</strong></li>
+          <li>开始质疑"我的循环是不是太复杂了" → <strong>阶 4</strong></li>
+        </ul>
+      </div>
+
+      <blockquote>
+        <strong>关键洞察</strong>：大多数人停在阶 1，少数人进阶到阶 2，更少的人意识到阶 3 和阶 4 才是 Agent 工程的核心。传统程序员的优势在于——阶 3、阶 4 涉及的系统设计，正是你们熟悉的地盘。
+      </blockquote>
+    </section>
+
+    <!-- 模型 3 -->
+    <section id="m1-granularity">
+      <h2><span class="num">03</span>颗粒度 × 验证：双轴模型</h2>
+      <p class="section-lead">智能体项目成败的核心变量，不是技术栈、不是模型选择，而是这两个轴的组合。</p>
+
+      <p>智能体时代的颗粒度失控，比传统开发更危险——因为<strong>智能体的产出是概率性的</strong>。你让程序员写一个函数，错了你一眼能看出来；你让 Agent 一次性产出整个系统的代码，错了你连看哪一行都找不到。</p>
+
+      <div class="chart">
+        <svg viewBox="0 0 560 420" width="100%" style="display:block; max-width:520px; margin:0 auto">
+          <!-- 坐标轴 -->
+          <line x1="80" y1="40" x2="80" y2="360" stroke="currentColor" stroke-width="1.5"/>
+          <line x1="80" y1="360" x2="520" y2="360" stroke="currentColor" stroke-width="1.5"/>
+          <!-- 轴标签 -->
+          <text x="50" y="200" text-anchor="middle" font-size="12" fill="currentColor" transform="rotate(-90 50 200)" font-family="JetBrains Mono">验证强度 →</text>
+          <text x="300" y="395" text-anchor="middle" font-size="12" fill="currentColor" font-family="JetBrains Mono">交付颗粒度大小 →</text>
+          <!-- 中心十字线 -->
+          <line x1="300" y1="40" x2="300" y2="360" stroke="currentColor" stroke-width="1" stroke-dasharray="4 4" opacity="0.3"/>
+          <line x1="80" y1="200" x2="520" y2="200" stroke="currentColor" stroke-width="1" stroke-dasharray="4 4" opacity="0.3"/>
+          <!-- 四象限着色 -->
+          <!-- 左上：理想区 -->
+          <rect x="80" y="40" width="220" height="160" fill="#059669" opacity="0.08"/>
+          <!-- 右上：高颗粒度强验证 -->
+          <rect x="300" y="40" width="220" height="160" fill="#D97706" opacity="0.08"/>
+          <!-- 左下：安全区 -->
+          <rect x="80" y="200" width="220" height="160" fill="#2563EB" opacity="0.08"/>
+          <!-- 右下：危险区 -->
+          <rect x="300" y="200" width="220" height="160" fill="#DC2626" opacity="0.08"/>
+
+          <!-- 象限标签 -->
+          <text x="190" y="80" text-anchor="middle" font-size="13" font-weight="700" fill="#059669" font-family="IBM Plex Sans">★ 理想区</text>
+          <text x="190" y="100" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">低颗粒度 × 强验证</text>
+          <text x="190" y="118" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.5" font-family="JetBrains Mono">eval-driven · 分阶段交付</text>
+
+          <text x="410" y="80" text-anchor="middle" font-size="13" font-weight="700" fill="#D97706" font-family="IBM Plex Sans">高成本区</text>
+          <text x="410" y="100" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">高颗粒度 × 强验证</text>
+          <text x="410" y="118" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.5" font-family="JetBrains Mono">传统开发理想态 · 智能体应避开</text>
+
+          <text x="190" y="240" text-anchor="middle" font-size="13" font-weight="700" fill="#2563EB" font-family="IBM Plex Sans">安全区</text>
+          <text x="190" y="260" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">低颗粒度 × 弱验证</text>
+          <text x="190" y="278" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.5" font-family="JetBrains Mono">能跑 · 功能容易偏</text>
+
+          <text x="410" y="240" text-anchor="middle" font-size="13" font-weight="700" fill="#DC2626" font-family="IBM Plex Sans">✗ 危险区</text>
+          <text x="410" y="260" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">高颗粒度 × 无验证</text>
+          <text x="410" y="278" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.5" font-family="JetBrains Mono">憋大招 · 必然失控</text>
+
+          <!-- 箭头指示 -->
+          <text x="135" y="150" text-anchor="middle" font-size="20" fill="#059669">← 应该往这走</text>
+        </svg>
+        <div class="chart-caption">图 2 · 颗粒度 × 验证四象限。智能体时代的理想区与传统开发相反。</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="tag">核心洞察</span>智能体时代的理想区是"低颗粒度 × 强验证"</div>
+        <p>这跟传统开发完全相反。传统开发的理想态是"高颗粒度 × 强验证"——大需求 + 完整测试。但智能体产出是概率性的，<strong>高颗粒度下验证成本会指数爆炸</strong>（你要验证的组合太多了）。</p>
+        <p>所以策略应该是：<strong>把需求拆小，每个小块用 eval / 部署 / 回滚来验证</strong>。</p>
+      </div>
+
+      <div class="checklist">
+        <div class="checklist-title">自检 · 你的项目在哪个象限？</div>
+        <ul>
+          <li>你交付的单元，是"一个完整功能"还是"一个被测试覆盖的行为"？</li>
+          <li>出了问题，你能定位到哪一步吗？能回滚吗？</li>
+          <li>你的测试，是"跑通一次"还是"跑 5 次看通过率"？</li>
+          <li>如果三个都答"前者"，你可能在危险区或安全区边缘</li>
+        </ul>
+      </div>
+
+      <blockquote>
+        <strong>最可迁移的一句话</strong>：在智能体时代，颗粒度控制不是"把大需求拆成小需求"这么简单，而是"<strong>让每个交付单元都自带验证能力</strong>"——自带 eval、自带回滚、自带验收标准。
+      </blockquote>
+    </section>
+
+    <!-- ========== 第二幕 实践篇 ========== -->
+    <div class="act-divider">ACT II · 实践篇 — 怎么动手造 Agent</div>
+
+    <!-- 工具设计 -->
+    <section id="m2-tools">
+      <h2><span class="num">04</span>工具设计原则</h2>
+      <p class="section-lead">工具（function calling）是 Agent 与世界交互的接口。工具设计得好，Agent 能力上限就高。这里有六条原则中最关键的三条。</p>
+
+      <p>传统程序员把 API 文档当"给人看的说明"，但 Agent 时代，<strong>工具描述是给模型看的 prompt</strong>。描述得好，模型调用准确率能涨十几个百分点。</p>
+
+      <div class="card">
+        <div class="card-title"><span class="tag">原则 1</span>工具描述就是 prompt engineering</div>
+        <dl class="principle-grid">
+          <dt>为什么</dt>
+          <dd>实测数据：在工具定义中加入具体 usage examples，准确率从 <strong>72% → 90%</strong>。工具描述不是文档，是 prompt 的一部分。</dd>
+          <dt>怎么做</dt>
+          <dd>每个工具描述都包含：做什么、什么时候用、什么时候不用、至少一个 usage example。像写 few-shot prompt 一样写工具描述。</dd>
+          <dt>反模式</dt>
+          <dd>只写一句"查询用户信息"，没有任何示例。模型只能靠猜，调用时机经常错。</dd>
+        </dl>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="tag">原则 2</span>返回有意义的内容，不是 ID</div>
+        <dl class="principle-grid">
+          <dt>为什么</dt>
+          <dd>LLM 要基于返回值做下一步决策。返回 UUID 它看不懂，返回自然语言摘要它能直接用。</dd>
+          <dt>怎么做</dt>
+          <dd><strong>差的设计</strong>：<code>{"id": "abc123"}</code><br>
+          <strong>好的设计</strong>：<code>{"id": "abc123", "summary": "已创建项目'周末出游'，包含3个待办事项"}</code></dd>
+          <dt>反模式</dt>
+          <dd>返回纯 ID 或纯状态码，逼 Agent 再调一次工具去查"这个 ID 是什么"。</dd>
+        </dl>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="tag">原则 3</span>错误信息必须是可操作的</div>
+        <dl class="principle-grid">
+          <dt>为什么</dt>
+          <dd>LLM 拿到好的错误信息可以自我修正，差的信息只能重试或放弃。这是 Agent 能否自纠错的关键。</dd>
+          <dt>怎么做</dt>
+          <dd>错误信息必须包含"原因 + 当前输入 + 建议修正"。<br>
+          <strong>差</strong>：<code>"Error: invalid arguments"</code><br>
+          <strong>好</strong>：<code>"日期格式错误：你输入了'明天'，请用 YYYY-MM-DD 格式，例如 2026-06-16"</code></dd>
+          <dt>反模式</dt>
+          <dd>错误信息是给人看的（"出错了，请联系管理员"），对模型毫无帮助。</dd>
+        </dl>
+      </div>
+
+      <blockquote>
+        传统程序的错误信息是<strong>给人看</strong>的，Agent 时代的错误信息是<strong>给模型看</strong>的——必须让模型能基于错误信息修正下一步动作。这个认知转变至关重要。
+      </blockquote>
+    </section>
+
+    <!-- 循环设计 -->
+    <section id="m2-loop">
+      <h2><span class="num">05</span>循环设计：保持简单</h2>
+      <p class="section-lead">所有成熟 Agent 项目的核心循环都出奇地简单。复杂度应该下沉到工具和提示词，不在循环层面做状态机。</p>
+
+      <p>研究主流 Agent 框架（ReAct、Plan-and-Execute、Reflexion、事件驱动、图执行、对话循环）后，最重要的结论是：</p>
+
+      <blockquote>
+        "所有成熟项目的核心循环都出奇地简单……不要在循环层面做复杂的状态机。复杂度应该下沉到工具和提示词。"
+      </blockquote>
+
+      <p>一个清晰的判断标准：如果你的 Agent 需要复杂的状态流转图，多半是工具设计不够好。改善工具描述、让错误信息更可操作，往往能让复杂状态机简化成单一 ReAct 循环。</p>
+
+      <h3>触发 ≠ 响应</h3>
+      <p>传统聊天机器人的逻辑是"触发即全流程响应"——被 @ 了就走完整流程。但成熟的 Agent 应该把这两件事分开：</p>
+
+      <div class="card">
+        <div class="card-title"><span class="tag">原则</span>三层决策模型</div>
+        <ol style="margin-bottom:0">
+          <li><strong>需要关注吗？</strong>（触发判断：这条消息跟我有关吗）</li>
+          <li><strong>需要回复吗？</strong>（响应判断：要不要说点什么）</li>
+          <li><strong>需要做复杂处理吗？</strong>（处理深度：要不要调工具、查记忆、走完整流程）</li>
+        </ol>
+      </div>
+
+      <p>这三层解耦后，Agent 的行为更接近真实助手——可以"关注但不回复"（群里有人 @ 它但它判断不需要插话），也可以"回复但不做复杂处理"（简单问答回一句就行）。<strong>不是每次被叫到都要大动干戈</strong>。</p>
+    </section>
+
+    <!-- eval-driven -->
+    <section id="m2-eval">
+      <h2><span class="num">06</span>eval-driven 开发：Agent 时代的 TDD</h2>
+      <p class="section-lead">传统 TDD 是"先写测试再写代码"，Agent 时代的对应物是"先写 eval 用例再开发功能"。</p>
+
+      <p>传统单元测试测的是"函数返回值对不对"。但 Agent 的产出是<strong>行为链路</strong>（输入 → 意图判断 → 工具调用 → 记忆存储 → 最终回复），必须用行为级测试来定义"预期"。</p>
+
+      <div class="card">
+        <div class="card-title"><span class="tag">方法</span>eval-driven 的三个要点</div>
+        <dl class="principle-grid">
+          <dt>先写 eval</dt>
+          <dd>开发任何 Agent 功能前，<strong>先写一个 YAML/JSON 描述"输入什么、预期 Agent 怎么回应"</strong>。哪怕只写一个正向用例，也比"写完功能再想怎么测"强一百倍。</dd>
+          <dt>非确定性处理</dt>
+          <dd>LLM 是概率性的，单次测试没意义。<strong>每个用例跑 5 次，80% 通过（4/5）算过</strong>。确定性高的维度可降为 3 次，LLM 深度参与的保持 5 次。</dd>
+          <dt>三种判定</dt>
+          <dd>① 代码断言（快速客观：响应是否存在、记忆条数对不对）② LLM 裁判（灵活：让独立 LLM 按 rubric 打分）③ 人工抽查（金标准）。三种对应不同可信度需求。</dd>
+        </dl>
+      </div>
+
+      <h3>六维评价体系</h3>
+      <p>一个完整的 Agent eval 应该覆盖行为链路的每个环节：</p>
+      <ul>
+        <li><strong>触发边界</strong>：该响应时响应、该沉默时沉默</li>
+        <li><strong>意图分类</strong>：empty / operational / conversational 是否判对</li>
+        <li><strong>记忆质量</strong>：存储准确性、合并正确性</li>
+        <li><strong>回复质量</strong>：任务完成度、角色一致性、简洁性</li>
+        <li><strong>工具使用</strong>：只看结果对不对，不限制调用路径</li>
+        <li><strong>副作用安全</strong>：数据库操作是否安全、有无越权</li>
+      </ul>
+    </section>
+
+    <!-- 双 Agent 协作 -->
+    <section id="m2-multi">
+      <h2><span class="num">07</span>双 Agent 协作：当能力互补时</h2>
+      <p class="section-lead">多 Agent 不是银弹。只有当任务确实需要不同专业能力，且这些能力无法在单 Agent 中组合时，才值得引入。</p>
+
+      <blockquote>
+        <strong>"多 Agent 不是银弹。"</strong>普林斯顿 NLP 研究表明：在 <strong>64%</strong> 的基准测试任务中，单 Agent 匹配或优于多 Agent 系统。<br>
+        —— 只有当任务需要不同的专业能力（如 PM + 编码），且这些能力无法在单 Agent 中有效组合时，才值得引入多 Agent。
+      </blockquote>
+
+      <h3>什么时候该引入多 Agent？</h3>
+      <p>判断标准是<strong>能力是否 genuinely 互补</strong>。比如：</p>
+      <ul>
+        <li>一个 Agent 擅长中文语境理解和对话协调（适合 PM 角色）</li>
+        <li>另一个 Agent 擅长编码和文件操作（适合开发角色）</li>
+      </ul>
+      <p>这种情况值得拆。如果只是"一个 Agent 慢，拆成两个加速"——不值得，反而引入了协调成本。</p>
+
+      <div class="chart">
+        <svg viewBox="0 0 560 320" width="100%" style="display:block; max-width:480px; margin:0 auto">
+          <!-- Layer 3: 人 -->
+          <rect x="170" y="20" width="220" height="60" rx="8" fill="#2563EB" opacity="0.15" stroke="#2563EB" stroke-width="1.5"/>
+          <text x="280" y="45" text-anchor="middle" font-size="13" font-weight="700" fill="#2563EB" font-family="IBM Plex Sans">Layer 3 · 人</text>
+          <text x="280" y="65" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">审批关键节点 · 定义边界 · 兜底</text>
+          <text x="480" y="55" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.5" font-family="JetBrains Mono">介入频率：低</text>
+
+          <!-- 连接线 -->
+          <line x1="280" y1="80" x2="280" y2="110" stroke="currentColor" stroke-width="1.5" opacity="0.4"/>
+          <text x="295" y="100" font-size="10" fill="currentColor" opacity="0.5">审批/指令</text>
+
+          <!-- Layer 2: PM Agent -->
+          <rect x="170" y="110" width="220" height="60" rx="8" fill="#059669" opacity="0.15" stroke="#059669" stroke-width="1.5"/>
+          <text x="280" y="135" text-anchor="middle" font-size="13" font-weight="700" fill="#059669" font-family="IBM Plex Sans">Layer 2 · PM Agent</text>
+          <text x="280" y="155" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">理解需求 · 拆任务 · 验收产出</text>
+          <text x="480" y="145" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.5" font-family="JetBrains Mono">介入频率：中</text>
+
+          <!-- 连接线 -->
+          <line x1="280" y1="170" x2="280" y2="200" stroke="currentColor" stroke-width="1.5" opacity="0.4"/>
+          <text x="295" y="190" font-size="10" fill="currentColor" opacity="0.5">工具调用 + 验证</text>
+
+          <!-- Layer 1: 开发 Agent -->
+          <rect x="170" y="200" width="220" height="60" rx="8" fill="#D97706" opacity="0.15" stroke="#D97706" stroke-width="1.5"/>
+          <text x="280" y="225" text-anchor="middle" font-size="13" font-weight="700" fill="#D97706" font-family="IBM Plex Sans">Layer 1 · 开发 Agent</text>
+          <text x="280" y="245" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">搜索 · 编码 · 文件操作</text>
+          <text x="480" y="235" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.5" font-family="JetBrains Mono">介入频率：高</text>
+
+          <!-- 底部注释 -->
+          <text x="280" y="295" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.6" font-family="IBM Plex Sans">人越往上越稀缺（只审关键节点），越往下越密集（被调时执行）</text>
+          <text x="280" y="312" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.6">= 用智能体放大人力的杠杆</text>
+        </svg>
+        <div class="chart-caption">图 3 · 人-Agent-CC 三层协作模型。三层职责和介入频率不同。</div>
+      </div>
+
+      <h3>五要素：缺一不可</h3>
+      <p>如果决定引入多 Agent，这五个要素必须都做到：</p>
+      <ol>
+        <li><strong>能力互补</strong>（不是为多而多）</li>
+        <li><strong>上下文解耦</strong>（给指针不给内容——传文件路径，不传整个文件）</li>
+        <li><strong>异步 + 回调</strong>（子 Agent 执行慢，不阻塞主流程）</li>
+        <li><strong>双层产出验证</strong>（自动化检查 + LLM 裁判打分）</li>
+        <li><strong>边界感知权限</strong>（工作区内自由，越界必审批）</li>
+      </ol>
+
+      <div class="card">
+        <div class="card-title"><span class="tag">三准则</span>子 Agent 是工具，不是同事</div>
+        <dl class="principle-grid">
+          <dt>准则 1</dt>
+          <dd>传入结构化任务规范，返回结构化结果。不要期望子 Agent 理解主 Agent 的完整上下文——<strong>解耦上下文 = 子 Agent 可替换、可独立测试</strong>。</dd>
+          <dt>准则 2</dt>
+          <dd>交接用 Schema，不用自然语言。brief.md / plan.md 都是结构化文档，不是"你帮我做一下那个东西"。Schema 防止格式漂移。</dd>
+          <dt>准则 3</dt>
+          <dd>产出必须可验证、失败必须可重试。<strong>子 Agent 的产出不能直接信任，必须有独立的验证机制</strong>（自动化检查 + LLM-as-Judge 双层）。</dd>
+        </dl>
+      </div>
+    </section>
+
+    <!-- 驾驭曲线 -->
+    <section id="m2-curve">
+      <h2><span class="num">08</span>驾驭曲线：四阶段</h2>
+      <p class="section-lead">你和智能体的协作关系，会经历"许愿 → 划边界 → 驾驭 → 元驾驭"四个阶段。判断自己处于哪一级，看四个物证标志。</p>
+
+      <div class="chart">
+        <svg viewBox="0 0 560 280" width="100%" style="display:block">
+          <defs>
+            <linearGradient id="curveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#DC2626" stop-opacity="0.6"/>
+              <stop offset="33%" stop-color="#D97706" stop-opacity="0.6"/>
+              <stop offset="66%" stop-color="#2563EB" stop-opacity="0.6"/>
+              <stop offset="100%" stop-color="#059669" stop-opacity="0.6"/>
+            </linearGradient>
+          </defs>
+          <!-- 坐标轴 -->
+          <line x1="50" y1="220" x2="540" y2="220" stroke="currentColor" stroke-width="1.5" opacity="0.4"/>
+          <line x1="50" y1="40" x2="50" y2="220" stroke="currentColor" stroke-width="1.5" opacity="0.4"/>
+          <text x="295" y="260" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.6" font-family="JetBrains Mono">时间 →</text>
+          <text x="28" y="130" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.6" transform="rotate(-90 28 130)" font-family="JetBrains Mono">能力 ↑</text>
+
+          <!-- 曲线（阶梯上升）-->
+          <path d="M 80 200 L 80 180 L 200 180 L 200 140 L 320 140 L 320 90 L 470 90 L 470 55 L 530 55"
+                fill="none" stroke="url(#curveGrad)" stroke-width="3" stroke-linejoin="round"/>
+
+          <!-- 四个节点 -->
+          <circle cx="80" cy="180" r="6" fill="#DC2626"/>
+          <circle cx="200" cy="140" r="6" fill="#D97706"/>
+          <circle cx="320" cy="90" r="6" fill="#2563EB"/>
+          <circle cx="470" cy="55" r="6" fill="#059669"/>
+
+          <!-- 标签 -->
+          <text x="80" y="200" text-anchor="middle" font-size="11" font-weight="700" fill="#DC2626">L1</text>
+          <text x="80" y="215" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.7">许愿式</text>
+
+          <text x="200" y="160" text-anchor="middle" font-size="11" font-weight="700" fill="#D97706">L2</text>
+          <text x="200" y="175" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.7">划边界</text>
+
+          <text x="320" y="110" text-anchor="middle" font-size="11" font-weight="700" fill="#2563EB">L3</text>
+          <text x="320" y="125" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.7">驾驭式</text>
+
+          <text x="470" y="75" text-anchor="middle" font-size="11" font-weight="700" fill="#059669">L4</text>
+          <text x="470" y="90" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.7">元驾驭</text>
+        </svg>
+        <div class="chart-caption">图 4 · 驾驭曲线：从"向 Agent 许愿"到"让 Agent 驾驭 Agent"</div>
+      </div>
+
+      <table>
+        <thead>
+          <tr><th>级别</th><th>名称</th><th>指令文件性质</th><th>权限特征</th><th>规划方式</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>L1</strong></td><td>许愿式</td><td>系统说明书 / 无</td>
+            <td>全开</td><td>一次性大需求</td>
+          </tr>
+          <tr>
+            <td><strong>L2</strong></td><td>边界式</td><td>开始有边界</td>
+            <td>粗放</td><td>有"非目标"清单</td>
+          </tr>
+          <tr>
+            <td><strong>L3</strong></td><td>驾驭式</td><td>有行为约束 / 开发哲学</td>
+            <td>白名单</td><td>分阶段 + 验收点</td>
+          </tr>
+          <tr>
+            <td><strong>L4</strong></td><td>元驾驭式</td><td>约束已内化为 Agent 系统提示</td>
+            <td>由 Agent 系统管理</td><td>Agent 自己拆解 + 验收</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="checklist">
+        <div class="checklist-title">自检 · 你在 L 几？</div>
+        <ul>
+          <li>你的 prompt / 指令文件里，有没有"禁止做什么"？</li>
+          <li>你给 Agent 的权限，是不是精确到具体命令？</li>
+          <li>你的需求，是"一次大块"还是"分阶段、每阶段可验证"？</li>
+          <li>你有没有让一个 Agent 去监督另一个 Agent？</li>
+        </ul>
+        <p style="font-size:13px; color:var(--color-muted); margin-top:12px; padding-left:0">四个都答"没有" → L1；四个都答"有" → L4。</p>
+      </div>
+    </section>
+
+    <!-- ========== 第三幕 避坑篇 ========== -->
+    <div class="act-divider">ACT III · 避坑篇 — 别走这些弯路</div>
+
+    <section id="m3-bigbang">
+      <h2><span class="num">09</span>反模式：憋大招</h2>
+      <p class="section-lead">最常见的失败模式。把 Agent 当代码生成器，一次性甩大需求，零验收。</p>
+
+      <div class="card antipattern">
+        <div class="card-title"><span class="tag">症状</span>一次性产出完整系统</div>
+        <p><strong>典型表现</strong>：</p>
+        <ul>
+          <li>需求一次性甩出，没有分阶段</li>
+          <li>规划文档宏大（一口气排好几周的 Phase 1-7）</li>
+          <li>权限全开，包括危险操作</li>
+          <li>根目录堆满 debug 文档和临时验证脚本</li>
+        </ul>
+        <p><strong>后果</strong>：大面积基础缺陷（比如十几个数据操作都漏了提交动作，导致数据写不进去）。错误无法定位——任何一处出错都会连锁崩溃。<span class="highlight">项目跑不起来，但 debug 文档越写越多。</span></p>
+
+        <div class="prescription">
+          <strong>让每个交付单元都自带验证能力</strong>。开新项目时先问自己："我这次的交付单元是什么？每个单元怎么验证？" 答不出"怎么验证"说明颗粒度还太大。自带 eval、自带回滚、自带验收标准——这三样是交付单元的标配。
+        </div>
+      </div>
+    </section>
+
+    <section id="m3-determinism">
+      <h2><span class="num">10</span>反模式：确定性思维陷阱</h2>
+      <p class="section-lead">传统程序员习惯了"确定性"——代码跑对了就一直对。但 LLM 是概率性的，同样的输入可能不同输出。</p>
+
+      <div class="card antipattern">
+        <div class="card-title"><span class="tag">症状</span>出错才处理，而非前置防御</div>
+        <p><strong>典型表现</strong>：</p>
+        <ul>
+          <li>LLM API 调用没有超时配置——不响应时阻塞好几分钟，整个服务卡死</li>
+          <li>503 / 超时直接丢消息，没有重试</li>
+          <li>测试跑通一次就算过，不知道下次可能不一样</li>
+          <li>信任 LLM 输出，不做独立验证</li>
+        </ul>
+        <p><strong>后果</strong>：服务卡死、消息丢失、偶发 bug 无法复现。<span class="highlight">企业级应用的第一要求"不丢数据、不卡死"全踩了。</span></p>
+
+        <div class="prescription">
+          <strong>把"确定性验证"重建为"概率性兜底"</strong>。每接一个外部依赖（LLM API、数据库、第三方服务），第一件事就是配超时 + 重试，不是写完功能再补。测试用统计方法判定（跑 5 次、80% 通过算过），不用单次判定。LLM 的输出必须有独立验证（LLM-as-Judge 或代码断言），不能直接信任。
+        </div>
+      </div>
+    </section>
+
+    <section id="m3-shell">
+      <h2><span class="num">11</span>反模式：空壳闭环</h2>
+      <p class="section-lead">功能代码写了，但没接通——有接口从没被调用，有告警服务从没接入生产链路。</p>
+
+      <div class="card antipattern">
+        <div class="card-title"><span class="tag">症状</span>有代码无闭环</div>
+        <p><strong>典型表现</strong>：</p>
+        <ul>
+          <li>告警推送服务写好了，但从没接入定时任务</li>
+          <li>决策记录接口定义了，但业务代码从没调用它</li>
+          <li>晨报能生成，但从没流入对话</li>
+        </ul>
+        <p><strong>后果</strong>：看似功能完整，实则残缺。审计可追溯性（企业合规刚需）停留在接口层。<span class="highlight">查库一看，决策表是空的——整个模块是空壳。</span></p>
+
+        <div class="prescription">
+          这是 AI 协作的一个<strong>隐性风险</strong>：单点能力强，全局串联弱。在 Agent 协作下，单个功能（写个推送服务）很容易交付，但把这些功能串成闭环反而容易被遗漏——因为"串"需要全局视角，而 Agent 倾向于"你让我做啥我做啥"。<strong>必须由人主动做"串联审查"</strong>：定期检查"上个功能接没接通"，而不是假设"写了就通了"。
+        </div>
+      </div>
+    </section>
+
+    <section id="m3-gate">
+      <h2><span class="num">12</span>反模式：无质量门禁</h2>
+      <p class="section-lead">测试靠人肉、lint 靠自觉、明知有缺陷也无法阻止它进入主分支。</p>
+
+      <div class="card antipattern">
+        <div class="card-title"><span class="tag">症状</span>质量全靠人</div>
+        <p><strong>典型表现</strong>：</p>
+        <ul>
+          <li>没有 CI——提交时不会自动跑测试和 lint</li>
+          <li>测试只覆盖算法层，没有集成测试和端到端测试</li>
+          <li>明知有问题（写进了待办），但因为没门禁，缺陷照样进主分支</li>
+          <li>评测结果靠 log 肉眼比对，没形成回归基线</li>
+        </ul>
+        <p><strong>后果</strong>：<span class="highlight">"能跑的 demo"和"企业级可维护项目"最明显的分界。</span>企业级项目最基本的要求是"每次提交都经过验证"。</p>
+
+        <div class="prescription">
+          配 CI（哪怕只是 GitHub Actions / pre-commit）：<strong>提交时自动跑测试 + lint + 类型检查，失败阻止合并</strong>。这件事成本低、收益大，是性价比最高的工程投入之一。评测框架要工程化——用例自动跑、结果自动比对、生成回归基线，而不是靠 log 肉眼判断。
+        </div>
+      </div>
+    </section>
+
+    <section id="m3-statemachine">
+      <h2><span class="num">13</span>反模式：迷信复杂状态机</h2>
+      <p class="section-lead">想做 Agent，第一反应是"设计一个复杂的状态机/工作流"。但成熟项目的共识是相反的。</p>
+
+      <div class="card antipattern">
+        <div class="card-title"><span class="tag">症状</span>循环层面堆复杂度</div>
+        <p><strong>典型表现</strong>：</p>
+        <ul>
+          <li>给 Agent 设计了多阶段固定流程（Phase 1 意图 → Phase 2 记忆 → Phase 3 回复）</li>
+          <li>简单请求被强制走完三阶段，复杂请求又受限于三阶段的结构</li>
+          <li>两条路径共享记忆但不共享上下文，上下文是断裂的</li>
+        </ul>
+        <p><strong>后果</strong>：<span class="highlight">要么完全不响应，要么全流程响应，没有中间状态。</span>Agent 行为僵化，不够"像助手"。</p>
+
+        <div class="prescription">
+          <strong>保持循环简单（ReAct），复杂度下沉到工具和提示词</strong>。用 LLM 自决循环代替固定状态机——简单请求一次就回，复杂请求多轮工具调用。结构只保证边界（触发的必回、不触发的不回），复杂度交还给模型。改善工具描述和错误信息，往往能让复杂状态机简化成单一循环。
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== 收尾 ========== -->
+    <section id="takeaway">
+      <h2>带回家清单</h2>
+      <p class="section-lead">如果只能记住六条经验，就记这六条。每条都配一句提炼。</p>
+
+      <div class="takeaway-grid">
+        <div class="takeaway-item">
+          <div class="takeaway-num">01</div>
+          <div>
+            <strong>Agent = Model + Harness</strong>
+            <p>模型之外皆是工程。遇到问题先查 harness 再换模型——工具、错误、上下文、循环，这四项查完能定位 80% 的问题。</p>
+          </div>
+        </div>
+
+        <div class="takeaway-item">
+          <div class="takeaway-num">02</div>
+          <div>
+            <strong>颗粒度 × 验证双轴决定成败</strong>
+            <p>智能体时代的理想区是"低颗粒度 × 强验证"。让每个交付单元都自带验证能力——自带 eval、自带回滚、自带验收标准。</p>
+          </div>
+        </div>
+
+        <div class="takeaway-item">
+          <div class="takeaway-num">03</div>
+          <div>
+            <strong>eval-driven 是 Agent 时代的 TDD</strong>
+            <p>先写 eval 用例再开发功能。跑 5 次、80% 通过算过。代码断言 + LLM 裁判 + 人工抽查，三种手段对应不同可信度。</p>
+          </div>
+        </div>
+
+        <div class="takeaway-item">
+          <div class="takeaway-num">04</div>
+          <div>
+            <strong>子 Agent 是工具，不是同事</strong>
+            <p>多 Agent 不是银弹（64% 任务单 Agent 更优）。能力互补才引入。传结构化任务、收结构化结果、独立验证产出。</p>
+          </div>
+        </div>
+
+        <div class="takeaway-item">
+          <div class="takeaway-num">05</div>
+          <div>
+            <strong>确定性思维需重建为概率性兜底</strong>
+            <p>结构类能力（分层/日志/迁移）全可迁移，但"出错才处理"的确定性思维必须重建为"前置防御"（超时+重试+熔断）。</p>
+          </div>
+        </div>
+
+        <div class="takeaway-item">
+          <div class="takeaway-num">06</div>
+          <div>
+            <strong>用 Agent 驾驭 Agent，是时代的杠杆</strong>
+            <p>当协作成熟度到 L3 之后，下一步不是"更熟练地驾驭"，而是"把驾驭这件事外包给一个专门的 Agent"。人从执行者变成架构师。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="closing" id="closing">
+      <p>
+        智能体时代，决定一个工程师价值的，不再是"能写多少代码"，<br>
+        而是"能驾驭多少智能体"。<br><br>
+        这条路没有终点，但有方向：<br>
+        <strong>从用 Agent，到驾驭 Agent，到让 Agent 驾驭 Agent。</strong>
+      </p>
+      <div class="signature">
+        Agent Engineering Handbook · 2026<br>
+        从半年实战中提炼，欢迎传播与指正
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+(function() {
+  // ========== 主题切换 ==========
+  const themeToggle = document.getElementById('themeToggle');
+  const iconMoon = document.getElementById('iconMoon');
+  const savedTheme = localStorage.getItem('handbook-theme');
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    if (theme === 'dark') {
+      iconMoon.innerHTML = '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>';
+    } else {
+      iconMoon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+    }
+  }
+
+  // 初始化主题：localStorage > 系统偏好 > 默认浅色
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
+  applyTheme(initialTheme);
+
+  themeToggle.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    localStorage.setItem('handbook-theme', next);
+  });
+
+  // ========== 阅读进度条 ==========
+  const progressBar = document.getElementById('progressBar');
+  function updateProgress() {
+    const scrollTop = window.scrollY;
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+    progressBar.style.width = progress + '%';
+  }
+  window.addEventListener('scroll', updateProgress, { passive: true });
+  updateProgress();
+
+  // ========== 侧边目录联动 ==========
+  const navLinks = document.querySelectorAll('.sidebar a');
+  const sections = document.querySelectorAll('main section[id]');
+  const sidebar = document.getElementById('sidebar');
+
+  function highlightNav() {
+    let current = '';
+    const scrollPos = window.scrollY + 100;
+    sections.forEach(sec => {
+      if (sec.offsetTop <= scrollPos) {
+        current = sec.id;
+      }
+    });
+    navLinks.forEach(link => {
+      link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+    });
+  }
+  window.addEventListener('scroll', highlightNav, { passive: true });
+  highlightNav();
+
+  // 点击平滑滚动 + 关闭移动端侧边栏
+  navLinks.forEach(link => {
+    link.addEventListener('click', (e) => {
+      if (window.innerWidth <= 768) {
+        sidebar.classList.remove('open');
+      }
+    });
+  });
+
+  // ========== 移动端菜单切换 ==========
+  const menuToggle = document.getElementById('menuToggle');
+  menuToggle.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+  });
+
+  // 点击内容区关闭移动端侧边栏
+  document.querySelector('.content').addEventListener('click', () => {
+    if (window.innerWidth <= 768 && sidebar.classList.contains('open')) {
+      sidebar.classList.remove('open');
+    }
+  });
+})();
+</script>
+
+</body>
+</html>
